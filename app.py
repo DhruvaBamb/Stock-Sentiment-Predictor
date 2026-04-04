@@ -18,10 +18,10 @@ def load_model():
         from transformers import AutoTokenizer, pipeline
         
         model = ORTModelForSequenceClassification.from_pretrained(
-            "philschmid/finbert-tone-onnx"
+            "optimum/finbert-sentiment"
         )
         tokenizer = AutoTokenizer.from_pretrained(
-            "yiyanghkust/finbert-tone"
+            "ProsusAI/finbert"
         )
         sentiment_pipeline = pipeline(
             "sentiment-analysis",
