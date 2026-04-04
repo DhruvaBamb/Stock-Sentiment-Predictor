@@ -1,7 +1,8 @@
 import os
 from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
-from transformers import pipeline
+from optimum.onnxruntime import ORTModelForSequenceClassification
+from transformers import AutoTokenizer, pipeline
 
 # Load environment variables
 load_dotenv()
@@ -18,9 +19,18 @@ def load_model():
     global sentiment_pipeline
     if sentiment_pipeline is None:
         try:
-            print(f"Loading model {MODEL_ID}...")
-            # We use text-classification/sentiment-analysis pipeline
-            sentiment_pipeline = pipeline("sentiment-analysis", model=MODEL_ID)
+            print("Loading model...")
+            model = ORTModelForSequenceClassification.from_pretrained(
+                "philschmid/finbert-tone-onnx"  
+            )
+            tokenizer = AutoTokenizer.from_pretrained(
+                "yiyanghkust/finbert-tone"
+            )
+            sentiment_pipeline = pipeline(
+                "sentiment-analysis",
+                model=model,
+                tokenizer=tokenizer
+            )
             print("Model loaded successfully.")
         except Exception as e:
             print(f"Error loading model: {e}")

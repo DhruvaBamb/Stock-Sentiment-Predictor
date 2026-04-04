@@ -8,9 +8,6 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 COPY requirements.txt .
 
-# Install CPU-only torch first
-RUN pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
-
 # Then install rest
 RUN pip install --no-cache-dir -r requirements.txt
 
