@@ -6,4 +6,4 @@ flask-cors==4.0.1
 onnxruntime==1.17.1
 numpy==1.26.4
 requests==2.31.0
-tokenizers==0.19.1
+transformers==4.40.1

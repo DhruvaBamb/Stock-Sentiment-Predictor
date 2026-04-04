@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import requests
-from tokenizers import Tokenizer
+from transformers import AutoTokenizer
 import onnxruntime as ort
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
@@ -15,12 +15,10 @@ CORS(app)
 # ── Model paths ────────────────────────────────────────────────────────────────
 MODEL_DIR   = "/tmp/finbert"
 ONNX_PATH   = os.path.join(MODEL_DIR, "model.onnx")
-TOK_PATH    = os.path.join(MODEL_DIR, "tokenizer.json")
 
 # HuggingFace raw URLs for ProsusAI/finbert
-# tokenizer.json is at root; model.onnx is inside the onnx/ subfolder
+# model.onnx is inside the onnx/ subfolder
 ONNX_URL  = "https://huggingface.co/ProsusAI/finbert/resolve/main/onnx/model.onnx"
-TOK_URL   = "https://huggingface.co/ProsusAI/finbert/resolve/main/tokenizer_config.json"
 
 LABELS = ["positive", "negative", "neutral"]   # finbert label order
 
@@ -49,13 +47,13 @@ def softmax(x):
 def load_model():
     global tokenizer, ort_session
     try:
-        print("Downloading tokenizer and ONNX model …")
-        _download(TOK_URL,  TOK_PATH)
+        print("Initializing tokenizer and downloading ONNX model …")
+        
+        # Use AutoTokenizer to handle config/vocab automatically
+        tokenizer = AutoTokenizer.from_pretrained("ProsusAI/finbert")
+        
+        # Download ONNX model for inference
         _download(ONNX_URL, ONNX_PATH)
-
-        tokenizer   = Tokenizer.from_file(TOK_PATH)
-        tokenizer.enable_padding(pad_id=0, pad_token="[PAD]")
-        tokenizer.enable_truncation(max_length=512)
 
         ort_session = ort.InferenceSession(
             ONNX_PATH,
@@ -83,7 +81,7 @@ def health():
 
 @app.route("/api/predict", methods=["POST"])
 def predict():
-    if ort_session is None:
+    if ort_session is None or tokenizer is None:
         return jsonify({"error": "Model failed to load. Check logs."}), 500
 
     data = request.get_json()
@@ -92,19 +90,14 @@ def predict():
         return jsonify({"error": "No text provided"}), 400
 
     try:
-        enc = tokenizer.encode(text)
-        input_ids      = np.array([enc.ids],              dtype=np.int64)
-        attention_mask = np.array([enc.attention_mask],   dtype=np.int64)
-        token_type_ids = np.array([enc.type_ids],         dtype=np.int64)
+        # Tokenize using transformers AutoTokenizer
+        inputs = tokenizer(text, return_tensors="np", padding=True, truncation=True, max_length=512)
+        
+        # Prepare inputs for ONNX (convert to int64)
+        ort_inputs = {k: v.astype(np.int64) for k, v in inputs.items()}
 
-        outputs = ort_session.run(
-            None,
-            {
-                "input_ids":      input_ids,
-                "attention_mask": attention_mask,
-                "token_type_ids": token_type_ids,
-            }
-        )
+        outputs = ort_session.run(None, ort_inputs)
+        
         logits = outputs[0][0]
         probs  = softmax(logits)
         idx    = int(np.argmax(probs))
