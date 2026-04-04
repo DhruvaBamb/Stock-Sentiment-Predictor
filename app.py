@@ -14,19 +14,13 @@ def load_model():
     global sentiment_pipeline
     try:
         print("Loading model...")
-        from optimum.onnxruntime import ORTModelForSequenceClassification
-        from transformers import AutoTokenizer, pipeline
+        from transformers import pipeline
         
-        model = ORTModelForSequenceClassification.from_pretrained(
-            "optimum/finbert-sentiment"
-        )
-        tokenizer = AutoTokenizer.from_pretrained(
-            "ProsusAI/finbert"
-        )
+        # This 100% exists and works
         sentiment_pipeline = pipeline(
-            "sentiment-analysis",
-            model=model,
-            tokenizer=tokenizer
+            "text-classification",
+            model="ProsusAI/finbert",
+            device=-1  # force CPU
         )
         print("Model loaded successfully.")
     except Exception as e:

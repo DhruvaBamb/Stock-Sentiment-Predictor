@@ -1,20 +1,8 @@
 FROM python:3.11-slim
-
-# Install Chrome + ChromeDriver for Selenium
-RUN apt-get update && apt-get install -y \
-    chromium chromium-driver \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 COPY requirements.txt .
-
-# Then install rest
+RUN pip install torch==2.3.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
-
 COPY . .
-
-ENV CHROME_BIN=/usr/bin/chromium
-ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
-
 EXPOSE 5000
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "300", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
