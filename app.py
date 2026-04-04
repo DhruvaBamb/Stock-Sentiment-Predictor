@@ -1,35 +1,74 @@
 import os
+import numpy as np
+import requests
+from tokenizers import Tokenizer
+import onnxruntime as ort
 from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)
 
-# At top of file - load model on startup
-sentiment_pipeline = None
+# ── Model paths ────────────────────────────────────────────────────────────────
+MODEL_DIR   = "/tmp/finbert"
+ONNX_PATH   = os.path.join(MODEL_DIR, "model.onnx")
+TOK_PATH    = os.path.join(MODEL_DIR, "tokenizer.json")
 
+# HuggingFace raw URLs for ProsusAI/finbert ONNX export
+ONNX_URL  = "https://huggingface.co/ProsusAI/finbert/resolve/main/onnx/model.onnx"
+TOK_URL   = "https://huggingface.co/ProsusAI/finbert/resolve/main/tokenizer.json"
+
+LABELS = ["positive", "negative", "neutral"]   # finbert label order
+
+# ── Globals ────────────────────────────────────────────────────────────────────
+tokenizer   = None
+ort_session = None
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+def _download(url, dest):
+    """Download a file if it doesn't already exist."""
+    if os.path.exists(dest):
+        return
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    print(f"Downloading {url} → {dest}")
+    r = requests.get(url, timeout=120)
+    r.raise_for_status()
+    with open(dest, "wb") as f:
+        f.write(r.content)
+    print(f"Saved {dest} ({len(r.content)//1024} KB)")
+
+def softmax(x):
+    e = np.exp(x - np.max(x))
+    return e / e.sum()
+
+# ── Load model on startup ──────────────────────────────────────────────────────
 def load_model():
-    global sentiment_pipeline
+    global tokenizer, ort_session
     try:
-        print("Loading model...")
-        from transformers import pipeline
-        
-        # This 100% exists and works
-        sentiment_pipeline = pipeline(
-            "text-classification",
-            model="ProsusAI/finbert",
-            device=-1  # force CPU
+        print("Downloading tokenizer and ONNX model …")
+        _download(TOK_URL,  TOK_PATH)
+        _download(ONNX_URL, ONNX_PATH)
+
+        tokenizer   = Tokenizer.from_file(TOK_PATH)
+        tokenizer.enable_padding(pad_id=0, pad_token="[PAD]")
+        tokenizer.enable_truncation(max_length=512)
+
+        ort_session = ort.InferenceSession(
+            ONNX_PATH,
+            providers=["CPUExecutionProvider"]
         )
-        print("Model loaded successfully.")
+        print("Model loaded successfully ✓")
     except Exception as e:
         print(f"Error loading model: {e}")
-        sentiment_pipeline = None
+        tokenizer   = None
+        ort_session = None
 
-# Load on startup
 load_model()
 
+# ── Routes ─────────────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -38,30 +77,41 @@ def index():
 def health():
     return jsonify({
         "status": "ok",
-        "model_loaded": sentiment_pipeline is not None
+        "model_loaded": ort_session is not None
     })
 
 @app.route("/api/predict", methods=["POST"])
 def predict():
-    # Check if model loaded successfully
-    if sentiment_pipeline is None:
-        return jsonify({
-            "error": "Model failed to load. Check logs."
-        }), 500
-        
+    if ort_session is None:
+        return jsonify({"error": "Model failed to load. Check logs."}), 500
+
     data = request.get_json()
-    text = data.get("text", "")
-    
+    text = (data or {}).get("text", "").strip()
     if not text:
         return jsonify({"error": "No text provided"}), 400
-         
+
     try:
-        results = sentiment_pipeline(text)
-        result = results[0]
+        enc = tokenizer.encode(text)
+        input_ids      = np.array([enc.ids],              dtype=np.int64)
+        attention_mask = np.array([enc.attention_mask],   dtype=np.int64)
+        token_type_ids = np.array([enc.type_ids],         dtype=np.int64)
+
+        outputs = ort_session.run(
+            None,
+            {
+                "input_ids":      input_ids,
+                "attention_mask": attention_mask,
+                "token_type_ids": token_type_ids,
+            }
+        )
+        logits = outputs[0][0]
+        probs  = softmax(logits)
+        idx    = int(np.argmax(probs))
+
         return jsonify({
-            "text": text,
-            "prediction": result['label'],
-            "confidence": round(result['score'] * 100, 2)
+            "text":       text,
+            "prediction": LABELS[idx].capitalize(),
+            "confidence": round(float(probs[idx]) * 100, 2)
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
