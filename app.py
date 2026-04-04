@@ -9,7 +9,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Model config
-MODEL_ID = os.getenv("MODEL_ID", "ProsusAI/finbert")
+MODEL_ID = os.getenv("MODEL_ID", "yiyanghkust/finbert-tone")
 
 # Global pipeline object
 sentiment_pipeline = None
@@ -52,7 +52,7 @@ def predict():
         results = sentiment_pipeline(text)
         
         # results format: [{'label': 'positive', 'score': 0.94...}]
-        # ProsusAI/finbert returns 'positive', 'negative', 'neutral'
+        # yiyanghkust/finbert-tone returns 'Positive', 'Negative', 'Neutral'
         result = results[0]
         
         return jsonify({
