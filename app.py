@@ -20,7 +20,7 @@ TOK_PATH    = os.path.join(MODEL_DIR, "tokenizer.json")
 # HuggingFace raw URLs for ProsusAI/finbert
 # tokenizer.json is at root; model.onnx is inside the onnx/ subfolder
 ONNX_URL  = "https://huggingface.co/ProsusAI/finbert/resolve/main/onnx/model.onnx"
-TOK_URL   = "https://huggingface.co/ProsusAI/finbert/resolve/main/tokenizer.json"
+TOK_URL   = "https://huggingface.co/ProsusAI/finbert/resolve/main/tokenizer_config.json"
 
 LABELS = ["positive", "negative", "neutral"]   # finbert label order
 
