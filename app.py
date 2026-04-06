@@ -10,7 +10,7 @@ app = Flask(__name__)
 CORS(app)
 
 HF_TOKEN   = os.getenv("HF_TOKEN")
-HF_API_URL = "https://api-inference.huggingface.co/models/ProsusAI/finbert"
+HF_API_URL = "https://router.huggingface.co/hf-inference/models/ProsusAI/finbert/pipeline/text-classification"
 HEADERS    = {"Authorization": f"Bearer {HF_TOKEN}"}
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
