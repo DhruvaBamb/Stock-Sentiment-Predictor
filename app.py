@@ -43,7 +43,7 @@ def predict():
         if isinstance(results, list) and isinstance(results[0], list):
             results = results[0]
         best = max(results, key=lambda x: x["score"])
-        return jsonify({"text": text, "prediction": best["label"].capitalize(), "confidence": round(best["score"] * 100, 2)})
+        return jsonify({"text": text, "prediction": best["label"].capitalize(), "confidence": best["score"]})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
